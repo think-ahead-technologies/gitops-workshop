@@ -9,7 +9,7 @@ metadata:
 data:
   # Loaded before the image's sftp.conf; for sshd the first value of an option wins.
   00-keys.conf: |
-    HostKey /etc/ssh/hostkeys/ssh_host_ed25519_key
+    HostKey /etc/ssh/hostkeys/ssh_host_ecdsa_key
     AuthorizedKeysFile /etc/ssh/authorized_keys/%u
     PasswordAuthentication no
     KbdInteractiveAuthentication no
@@ -80,7 +80,7 @@ spec:
             secretName: sftp-server-keys
             items:
               - key: host-key
-                path: ssh_host_ed25519_key
+                path: ssh_host_ecdsa_key
             defaultMode: 0600
         - name: authorized-keys
           secret:

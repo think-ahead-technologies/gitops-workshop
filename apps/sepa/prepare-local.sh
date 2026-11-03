@@ -3,7 +3,8 @@
 # local OrbStack cluster. Builds the validator and SFTP server images into the
 # shared Docker image store and creates every credential the manifests
 # reference - PostgreSQL password, SFTP host key, SFTP client key and the
-# known_hosts ConfigMap - so no secret is ever committed to Git.
+# known_hosts ConfigMap - so no secret is ever committed to Git. Keys are
+# ECDSA P-256: the validator's SSH client does not load ed25519 private keys.
 # Usage: apps/sepa/prepare-local.sh <path to sepa-order-validator checkout>
 set -euo pipefail
 
@@ -31,8 +32,8 @@ if ! exists secret postgres; then
 fi
 
 if ! exists secret sftp-server-keys; then
-  ssh-keygen -q -t ed25519 -N '' -C sftp-server -f "$TMP/host"
-  ssh-keygen -q -t ed25519 -N '' -C payment-order-validator -f "$TMP/client"
+  ssh-keygen -q -t ecdsa -b 256 -N '' -C sftp-server -f "$TMP/host"
+  ssh-keygen -q -t ecdsa -b 256 -N '' -C payment-order-validator -f "$TMP/client"
   kubectl -n "$NS" create secret generic sftp-server-keys \
     --from-file=host-key="$TMP/host" --from-file=authorized-key="$TMP/client.pub"
   kubectl -n "$NS" create secret generic payment-order-validator-sftp \
