@@ -68,8 +68,10 @@ spec:
             - name: host-key
               mountPath: /etc/ssh/hostkeys
               readOnly: true
+            # subPath: sshd StrictModes rejects the world-writable directory of a Secret volume.
             - name: authorized-keys
-              mountPath: /etc/ssh/authorized_keys
+              mountPath: /etc/ssh/authorized_keys/sepa
+              subPath: sepa
               readOnly: true
       volumes:
         - name: config

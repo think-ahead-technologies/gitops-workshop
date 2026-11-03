@@ -28,9 +28,9 @@ wait_http() { # wait_http <url>
 }
 
 for ks in flux-system infrastructure-sources kyverno monitoring sepa-order-validator; do
-  ready=$(kubectl -n flux-system get kustomization "$ks" \
-    -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null)
-  [[ "$ready" == "True" ]] && pass "kustomization $ks Ready" || die "kustomization $ks not Ready"
+  # Waits out a reconcile that a fresh push started.
+  kubectl -n flux-system wait kustomization "$ks" --for=condition=Ready --timeout=5m >/dev/null 2>&1 \
+    && pass "kustomization $ks Ready" || die "kustomization $ks not Ready"
 done
 
 for ref in kyverno/kyverno kyverno/kyverno-policies \
