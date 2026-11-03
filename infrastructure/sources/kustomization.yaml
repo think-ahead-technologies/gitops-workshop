@@ -1,0 +1,5 @@
+# About: Helm chart sources used by the platform layers.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - helm-repositories.yaml

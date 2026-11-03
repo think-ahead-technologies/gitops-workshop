@@ -1,0 +1,5 @@
+# About: namespace holding every component of the observability stack.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring

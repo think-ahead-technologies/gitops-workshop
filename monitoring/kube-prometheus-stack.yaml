@@ -1,0 +1,61 @@
+# About: Prometheus Operator, Prometheus, Alertmanager, node-exporter,
+# kube-state-metrics and Grafana. Grafana gets Loki and Tempo as extra
+# datasources so metrics, logs and traces are explorable in one UI.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kube-prometheus-stack
+spec:
+  interval: 30m
+  timeout: 10m
+  chart:
+    spec:
+      chart: kube-prometheus-stack
+      version: 92.17.1
+      sourceRef:
+        kind: HelmRepository
+        name: prometheus-community
+        namespace: flux-system
+  install:
+    crds: CreateReplace
+  upgrade:
+    crds: CreateReplace
+  values:
+    # Control-plane components are not reachable for scraping on a single-node dev cluster.
+    kubeEtcd:
+      enabled: false
+    kubeControllerManager:
+      enabled: false
+    kubeScheduler:
+      enabled: false
+    kubeProxy:
+      enabled: false
+    prometheus:
+      prometheusSpec:
+        # Pick up ServiceMonitors and PodMonitors from every release, not only this one.
+        serviceMonitorSelectorNilUsesHelmValues: false
+        podMonitorSelectorNilUsesHelmValues: false
+        retention: 7d
+    grafana:
+      additionalDataSources:
+        - name: Loki
+          uid: loki
+          type: loki
+          access: proxy
+          url: http://loki.monitoring.svc:3100
+          jsonData:
+            derivedFields:
+              - name: TraceID
+                matcherRegex: '"?trace_?[iI][dD]"?[=:]\s*"?(\w+)'
+                url: "${__value.raw}"
+                datasourceUid: tempo
+        - name: Tempo
+          uid: tempo
+          type: tempo
+          access: proxy
+          url: http://tempo.monitoring.svc:3200
+          jsonData:
+            tracesToLogsV2:
+              datasourceUid: loki
+            serviceMap:
+              datasourceUid: prometheus

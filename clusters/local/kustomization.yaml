@@ -1,0 +1,8 @@
+# About: entry point Flux reconciles for the local cluster. Lists Flux itself
+# and the Flux Kustomizations that deploy the platform layers in order.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - flux-system
+  - infrastructure.yaml
+  - monitoring.yaml
