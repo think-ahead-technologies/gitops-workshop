@@ -1,0 +1,5 @@
+# About: namespace holding the Kyverno controllers.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kyverno

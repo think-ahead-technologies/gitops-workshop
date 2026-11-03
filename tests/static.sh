@@ -10,7 +10,8 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 fail=0
 
-KUSTOMIZE_DIRS=(clusters/local infrastructure/sources monitoring)
+KUSTOMIZE_DIRS=(clusters/local infrastructure/sources infrastructure/kyverno monitoring)
+RELEASE_DIRS=(infrastructure/kyverno monitoring)
 
 for dir in "${KUSTOMIZE_DIRS[@]}"; do
   if [[ ! -f "$ROOT/$dir/kustomization.yaml" ]]; then
@@ -24,10 +25,11 @@ for dir in "${KUSTOMIZE_DIRS[@]}"; do
 done
 
 sources="$TMP/infrastructure_sources.yaml"
-releases="$TMP/monitoring.yaml"
-if [[ -s "$releases" && -s "$sources" ]]; then
+for dir in "${RELEASE_DIRS[@]}"; do
+  releases="$TMP/$(echo "$dir" | tr / _).yaml"
+  [[ -s "$releases" && -s "$sources" ]] || continue
   names=$(yq -N 'select(.kind == "HelmRelease") | .metadata.name' "$releases")
-  [[ -n "$names" ]] || { echo "FAIL no HelmRelease found in monitoring"; fail=1; }
+  [[ -n "$names" ]] || { echo "FAIL no HelmRelease found in $dir"; fail=1; }
   for name in $names; do
     hr="select(.kind == \"HelmRelease\" and .metadata.name == \"$name\")"
     chart=$(yq -N "$hr | .spec.chart.spec.chart" "$releases")
@@ -46,6 +48,6 @@ if [[ -s "$releases" && -s "$sources" ]]; then
       echo "FAIL helm $name: $(grep -m1 -i error "$TMP/err" || head -1 "$TMP/err")"; fail=1
     fi
   done
-fi
+done
 
 exit $fail

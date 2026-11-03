@@ -1,0 +1,22 @@
+# About: Pod Security Standards baseline policies from the kyverno-policies
+# chart. Audit mode reports violations; it does not deny admission.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kyverno-policies
+spec:
+  interval: 30m
+  timeout: 10m
+  dependsOn:
+    - name: kyverno
+  chart:
+    spec:
+      chart: kyverno-policies
+      version: 3.9.2
+      sourceRef:
+        kind: HelmRepository
+        name: kyverno
+        namespace: flux-system
+  values:
+    podSecurityStandard: baseline
+    validationFailureAction: Audit

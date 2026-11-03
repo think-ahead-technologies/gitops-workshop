@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # About: end-to-end check of the running cluster. Asserts Flux reconciled
 # every layer, every HelmRelease is Ready, Grafana reports its Prometheus,
-# Loki and Tempo datasources healthy, Alloy ships pod logs to Loki, and a
-# trace sent to Alloy over OTLP is retrievable from Tempo.
+# Loki and Tempo datasources healthy, Alloy ships pod logs to Loki, a
+# trace sent to Alloy over OTLP is retrievable from Tempo, and Kyverno
+# reports Pod Security baseline violations in policy reports.
 set -uo pipefail
 
 NS=monitoring
@@ -24,16 +25,17 @@ wait_http() { # wait_http <url>
   return 1
 }
 
-for ks in flux-system infrastructure-sources monitoring; do
+for ks in flux-system infrastructure-sources kyverno monitoring; do
   ready=$(kubectl -n flux-system get kustomization "$ks" \
     -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null)
   [[ "$ready" == "True" ]] && pass "kustomization $ks Ready" || die "kustomization $ks not Ready"
 done
 
-for hr in kube-prometheus-stack loki tempo alloy; do
-  ready=$(kubectl -n "$NS" get helmrelease "$hr" \
+for ref in kyverno/kyverno kyverno/kyverno-policies \
+           monitoring/kube-prometheus-stack monitoring/loki monitoring/tempo monitoring/alloy; do
+  ready=$(kubectl -n "${ref%/*}" get helmrelease "${ref#*/}" \
     -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null)
-  [[ "$ready" == "True" ]] && pass "helmrelease $hr Ready" || die "helmrelease $hr not Ready"
+  [[ "$ready" == "True" ]] && pass "helmrelease $ref Ready" || die "helmrelease $ref not Ready"
 done
 
 [[ $fail -eq 0 ]] || exit 1
@@ -80,5 +82,15 @@ for _ in $(seq 1 30); do
   sleep 2
 done
 [[ $found -eq 1 ]] && pass "tempo returns trace $trace_id" || die "tempo has no trace $trace_id"
+
+# node-exporter uses hostNetwork, hostPID and hostPath, so baseline must flag it.
+violations=0
+for _ in $(seq 1 30); do
+  violations=$(kubectl -n "$NS" get policyreports -o json 2>/dev/null \
+    | jq '[.items[].results[]? | select(.result == "fail")] | length' 2>/dev/null || echo 0)
+  [[ "$violations" -gt 0 ]] && break; sleep 2
+done
+[[ "$violations" -gt 0 ]] && pass "kyverno reports $violations baseline violations in $NS" \
+  || die "kyverno reports no baseline violations in $NS"
 
 exit $fail

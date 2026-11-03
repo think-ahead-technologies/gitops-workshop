@@ -5,4 +5,5 @@ kind: Kustomization
 resources:
   - flux-system
   - infrastructure.yaml
+  - kyverno.yaml
   - monitoring.yaml

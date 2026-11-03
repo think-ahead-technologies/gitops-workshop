@@ -1,0 +1,10 @@
+# About: Kyverno policy engine plus the Pod Security Standards baseline
+# policies, in Audit mode so violations land in PolicyReports without
+# blocking any workload.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: kyverno
+resources:
+  - namespace.yaml
+  - kyverno.yaml
+  - kyverno-policies.yaml
