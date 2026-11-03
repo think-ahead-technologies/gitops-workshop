@@ -1,0 +1,10 @@
+# About: environment the SEPA order validator needs on the local cluster -
+# its namespace, a PostgreSQL database and a customer SFTP server. Secrets and
+# the SFTP known_hosts are created out of band by prepare-local.sh.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: sepa
+resources:
+  - namespace.yaml
+  - postgres.yaml
+  - sftp-server.yaml

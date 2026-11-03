@@ -7,3 +7,4 @@ resources:
   - infrastructure.yaml
   - kyverno.yaml
   - monitoring.yaml
+  - sepa-order-validator.yaml

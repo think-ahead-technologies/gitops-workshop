@@ -1,7 +1,8 @@
 # gitops-workshop
 
 Flux GitOps repository that deploys the Grafana observability stack and the
-Kyverno policy engine to a local Kubernetes cluster (verified on OrbStack).
+Kyverno policy engine to a local Kubernetes cluster (verified on OrbStack), and
+runs the SEPA order validator on it.
 
 ## Layout
 
@@ -11,9 +12,11 @@ clusters/local/              Flux entry point for the local cluster
   infrastructure.yaml        Flux Kustomization -> infrastructure/sources
   kyverno.yaml               Flux Kustomization -> infrastructure/kyverno (depends on sources)
   monitoring.yaml            Flux Kustomization -> monitoring (depends on sources)
+  sepa-order-validator.yaml  validator: environment from apps/sepa, app overlay from its own repo
 infrastructure/sources/      HelmRepository sources
 infrastructure/kyverno/      Kyverno and Pod Security baseline policies
 monitoring/                  HelmReleases of the Grafana stack
+apps/sepa/                   PostgreSQL and SFTP server for the validator, prepare-local.sh
 tests/static.sh              offline check: kustomize build + helm template of every release
 tests/e2e.sh                 live check: Flux Ready, datasources healthy, logs and traces flow
 ```
@@ -50,6 +53,32 @@ Violations do not block admission; they appear in PolicyReports:
 
 ```sh
 kubectl get policyreports -A
+```
+
+## SEPA order validator
+
+The app's manifests live in its own repository
+([sepa-order-validator](https://github.com/think-ahead-technologies/sepa-order-validator),
+`deploy/kustomize/overlays/local`). This repository provides its environment in
+the namespace `sepa`: PostgreSQL and a customer SFTP server.
+
+Images are built locally and secrets never enter Git. Run once per cluster,
+before or after Flux reconciles:
+
+```sh
+apps/sepa/prepare-local.sh ../sepa-order-validator
+```
+
+The script builds `payment-order-validator:0.1.0-local` and `sepa-sftp-server:local`
+into OrbStack's shared image store and creates the PostgreSQL password, the SFTP
+host and client keys, and the known_hosts ConfigMap.
+
+Drop a payment file into the inbox and read the report:
+
+```sh
+pod=$(kubectl -n sepa get pod -l app.kubernetes.io/name=sftp-server -o name)
+kubectl -n sepa exec -i $pod -- sh -c 'cat > /home/sepa/inbound/order.xml && chown sepa:sepa /home/sepa/inbound/order.xml' < tests/fixtures/pain.001.001.09.xml
+kubectl -n sepa exec $pod -- ls /home/sepa/outbound
 ```
 
 ## Access Grafana

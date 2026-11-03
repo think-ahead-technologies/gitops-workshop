@@ -10,7 +10,7 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 fail=0
 
-KUSTOMIZE_DIRS=(clusters/local infrastructure/sources infrastructure/kyverno monitoring)
+KUSTOMIZE_DIRS=(clusters/local infrastructure/sources infrastructure/kyverno monitoring apps/sepa)
 RELEASE_DIRS=(infrastructure/kyverno monitoring)
 
 for dir in "${KUSTOMIZE_DIRS[@]}"; do

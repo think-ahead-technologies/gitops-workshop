@@ -1,0 +1,5 @@
+# About: namespace holding the SEPA order validator and its backing services.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sepa

@@ -1,0 +1,52 @@
+# About: Flux wiring for the SEPA order validator. `sepa-environment` deploys
+# PostgreSQL and the SFTP server from this repo; `sepa-order-validator`
+# deploys the app's local Kustomize overlay from the validator's own repo
+# once its environment and the monitoring stack are ready.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: sepa-order-validator
+  namespace: flux-system
+spec:
+  interval: 1m
+  url: https://github.com/think-ahead-technologies/sepa-order-validator
+  ref:
+    branch: feat/local-cluster-deployment
+  ignore: |
+    /*
+    !/deploy/kustomize/
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: sepa-environment
+  namespace: flux-system
+spec:
+  interval: 10m
+  retryInterval: 1m
+  timeout: 5m
+  path: ./apps/sepa
+  prune: true
+  wait: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: sepa-order-validator
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: sepa-environment
+    - name: monitoring
+  interval: 10m
+  retryInterval: 1m
+  timeout: 5m
+  path: ./deploy/kustomize/overlays/local
+  prune: true
+  wait: true
+  sourceRef:
+    kind: GitRepository
+    name: sepa-order-validator

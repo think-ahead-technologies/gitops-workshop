@@ -1,0 +1,91 @@
+# About: customer SFTP server the validator polls for payment files and
+# delivers status reports to. Image built from the validator's test SFTP
+# Dockerfile; host key and the validator's public key come from the Secret
+# `sftp-server-keys`, and only public key login is accepted.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sftp-server-config
+data:
+  # Loaded before the image's sftp.conf; for sshd the first value of an option wins.
+  00-keys.conf: |
+    HostKey /etc/ssh/hostkeys/ssh_host_ed25519_key
+    AuthorizedKeysFile /etc/ssh/authorized_keys/%u
+    PasswordAuthentication no
+    KbdInteractiveAuthentication no
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sftp-server
+spec:
+  selector:
+    app.kubernetes.io/name: sftp-server
+  ports:
+    - name: ssh
+      port: 22
+      targetPort: ssh
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sftp-server
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sftp-server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sftp-server
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: sshd
+          # Built by prepare-local.sh; OrbStack shares the host's image store.
+          image: sepa-sftp-server:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: ssh
+              containerPort: 22
+          readinessProbe:
+            tcpSocket:
+              port: ssh
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/ssh/sshd_config.d/00-keys.conf
+              subPath: 00-keys.conf
+            - name: host-key
+              mountPath: /etc/ssh/hostkeys
+              readOnly: true
+            - name: authorized-keys
+              mountPath: /etc/ssh/authorized_keys
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: sftp-server-config
+        - name: host-key
+          secret:
+            secretName: sftp-server-keys
+            items:
+              - key: host-key
+                path: ssh_host_ed25519_key
+            defaultMode: 0600
+        - name: authorized-keys
+          secret:
+            secretName: sftp-server-keys
+            items:
+              - key: authorized-key
+                path: sepa
+            defaultMode: 0444

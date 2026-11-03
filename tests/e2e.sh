@@ -2,8 +2,10 @@
 # About: end-to-end check of the running cluster. Asserts Flux reconciled
 # every layer, every HelmRelease is Ready, Grafana reports its Prometheus,
 # Loki and Tempo datasources healthy, Alloy ships pod logs to Loki, a
-# trace sent to Alloy over OTLP is retrievable from Tempo, and Kyverno
-# reports Pod Security baseline violations in policy reports.
+# trace sent to Alloy over OTLP is retrievable from Tempo, Kyverno
+# reports Pod Security baseline violations in policy reports, and the SEPA
+# order validator answers a payment file dropped on its SFTP inbox with a
+# status report, with its metrics in Prometheus and its logs in Loki.
 set -uo pipefail
 
 NS=monitoring
@@ -25,7 +27,7 @@ wait_http() { # wait_http <url>
   return 1
 }
 
-for ks in flux-system infrastructure-sources kyverno monitoring; do
+for ks in flux-system infrastructure-sources kyverno monitoring sepa-order-validator; do
   ready=$(kubectl -n flux-system get kustomization "$ks" \
     -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null)
   [[ "$ready" == "True" ]] && pass "kustomization $ks Ready" || die "kustomization $ks not Ready"
@@ -82,6 +84,49 @@ for _ in $(seq 1 30); do
   sleep 2
 done
 [[ $found -eq 1 ]] && pass "tempo returns trace $trace_id" || die "tempo has no trace $trace_id"
+
+APP_NS=sepa
+available=$(kubectl -n "$APP_NS" get deployment payment-order-validator \
+  -o jsonpath='{.status.conditions[?(@.type=="Available")].status}' 2>/dev/null)
+[[ "$available" == "True" ]] && pass "deployment payment-order-validator Available" \
+  || die "deployment payment-order-validator not Available"
+
+sftp_pod=$(kubectl -n "$APP_NS" get pod -l app.kubernetes.io/name=sftp-server -o name 2>/dev/null | head -1)
+fixture="$(dirname "$0")/fixtures/pain.001.001.09.xml"
+if [[ -n "$sftp_pod" ]]; then
+  name="e2e-$(date +%s).xml"
+  kubectl -n "$APP_NS" exec -i "$sftp_pod" -- sh -c \
+    "cat > /home/sepa/staging/$name && chown sepa:sepa /home/sepa/staging/$name && mv /home/sepa/staging/$name /home/sepa/inbound/$name" \
+    < "$fixture"
+  reports=0
+  for _ in $(seq 1 60); do
+    reports=$(kubectl -n "$APP_NS" exec "$sftp_pod" -- sh -c "grep -l pain.002 /home/sepa/outbound/* 2>/dev/null | wc -l" | tr -d ' ')
+    [[ "$reports" -gt 0 ]] && break; sleep 2
+  done
+  [[ "$reports" -gt 0 ]] && pass "validator wrote pain.002 report for $name" || die "no pain.002 report in outbound"
+else
+  die "no sftp-server pod in $APP_NS"
+fi
+
+forward kube-prometheus-stack-prometheus 19090 9090
+wait_http http://localhost:19090/-/ready || die "prometheus port-forward"
+up=""
+for _ in $(seq 1 30); do
+  up=$(curl -sG http://localhost:19090/api/v1/query \
+    --data-urlencode "query=up{namespace=\"$APP_NS\",service=\"payment-order-validator\"}" \
+    | jq -r '[.data.result[].value[1]] | max // empty')
+  [[ "$up" == "1" ]] && break; sleep 2
+done
+[[ "$up" == "1" ]] && pass "prometheus scrapes payment-order-validator" || die "prometheus does not scrape payment-order-validator"
+
+app_lines=0
+for _ in $(seq 1 30); do
+  app_lines=$(curl -sG http://localhost:13100/loki/api/v1/query_range \
+    --data-urlencode "query={namespace=\"$APP_NS\",app=\"payment-order-validator\"}" --data-urlencode limit=5 \
+    | jq '[.data.result[].values[]] | length' 2>/dev/null || echo 0)
+  [[ "$app_lines" -gt 0 ]] && break; sleep 2
+done
+[[ "$app_lines" -gt 0 ]] && pass "loki has payment-order-validator logs" || die "loki has no payment-order-validator logs"
 
 # node-exporter uses hostNetwork, hostPID and hostPath, so baseline must flag it.
 violations=0
