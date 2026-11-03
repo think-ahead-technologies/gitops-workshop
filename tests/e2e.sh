@@ -5,7 +5,7 @@
 # trace sent to Alloy over OTLP is retrievable from Tempo, Kyverno
 # reports Pod Security baseline violations in policy reports, and the SEPA
 # order validator answers a payment file dropped on its SFTP inbox with a
-# status report, with its metrics in Prometheus and its logs in Loki.
+# pain.002 status report (the fixture's past execution date makes it RJCT/DT01), with its metrics in Prometheus and its logs in Loki.
 set -uo pipefail
 
 NS=monitoring
@@ -100,7 +100,8 @@ if [[ -n "$sftp_pod" ]]; then
     < "$fixture"
   reports=0
   for _ in $(seq 1 60); do
-    reports=$(kubectl -n "$APP_NS" exec "$sftp_pod" -- sh -c "grep -l pain.002 /home/sepa/outbound/* 2>/dev/null | wc -l" | tr -d ' ')
+    reports=$(kubectl -n "$APP_NS" exec "$sftp_pod" -- sh -c \
+      "grep -l pain.002 /home/sepa/outbound/${name%.xml}-*.pain002.xml 2>/dev/null | wc -l" | tr -d ' ')
     [[ "$reports" -gt 0 ]] && break; sleep 2
   done
   [[ "$reports" -gt 0 ]] && pass "validator wrote pain.002 report for $name" || die "no pain.002 report in outbound"
