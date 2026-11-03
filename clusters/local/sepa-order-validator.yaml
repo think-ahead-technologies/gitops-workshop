@@ -11,7 +11,7 @@ spec:
   interval: 1m
   url: https://github.com/think-ahead-technologies/sepa-order-validator
   ref:
-    branch: feat/local-cluster-deployment
+    branch: main
   ignore: |
     /*
     !/deploy/kustomize/
