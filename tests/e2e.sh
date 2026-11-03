@@ -91,6 +91,15 @@ available=$(kubectl -n "$APP_NS" get deployment payment-order-validator \
 [[ "$available" == "True" ]] && pass "deployment payment-order-validator Available" \
   || die "deployment payment-order-validator not Available"
 
+# The image tag in Git decides what runs; a rebuilt image only rolls out through a new tag.
+want_tag=$(kubectl -n flux-system get kustomization sepa-order-validator \
+  -o jsonpath='{.spec.images[?(@.name=="payment-order-validator")].newTag}')
+running=$(kubectl -n "$APP_NS" get pods -l app.kubernetes.io/name=payment-order-validator \
+  -o jsonpath='{range .items[*]}{.spec.containers[0].image}{"\n"}{end}' | sort -u)
+[[ -n "$want_tag" && "$running" == "payment-order-validator:$want_tag" ]] \
+  && pass "validator pods run image tag $want_tag from Git" \
+  || die "validator pods run '$running', Git wants tag '${want_tag:-<none>}'"
+
 sftp_pod=$(kubectl -n "$APP_NS" get pod -l app.kubernetes.io/name=sftp-server -o name 2>/dev/null | head -1)
 fixture="$(dirname "$0")/fixtures/pain.001.001.09.xml"
 if [[ -n "$sftp_pod" ]]; then

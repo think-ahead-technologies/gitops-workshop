@@ -5,6 +5,8 @@
 # reference - PostgreSQL password, SFTP host key, SFTP client key and the
 # known_hosts ConfigMap - so no secret is ever committed to Git. Keys are
 # ECDSA P-256: the validator's SSH client does not load ed25519 private keys.
+# The validator image is tagged with the checkout's short commit id; set that
+# tag in clusters/local/sepa-order-validator.yaml (spec.images) to roll it out.
 # Usage: apps/sepa/prepare-local.sh <path to sepa-order-validator checkout>
 set -euo pipefail
 
@@ -13,7 +15,8 @@ NS=sepa
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-docker build -t payment-order-validator:0.1.0-local "$SRC"
+TAG="$(git -C "$SRC" rev-parse --short=7 HEAD)"
+docker build -t "payment-order-validator:$TAG" "$SRC"
 docker build -t sepa-sftp-server:local \
   --build-arg SFTP_USER=sepa \
   --build-arg SFTP_PASSWORD="$(openssl rand -hex 24)" \
@@ -42,3 +45,5 @@ if ! exists secret sftp-server-keys; then
   kubectl -n "$NS" create configmap payment-order-validator-sftp-known-hosts \
     --from-file=known_hosts="$TMP/known_hosts" --dry-run=client -o yaml | kubectl apply -f -
 fi
+
+echo "Built payment-order-validator:$TAG - set newTag: $TAG in clusters/local/sepa-order-validator.yaml"

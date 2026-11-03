@@ -69,9 +69,13 @@ before or after Flux reconciles:
 apps/sepa/prepare-local.sh ../sepa-order-validator
 ```
 
-The script builds `payment-order-validator:0.1.0-local` and `sepa-sftp-server:local`
+The script builds `payment-order-validator:<commit>` and `sepa-sftp-server:local`
 into OrbStack's shared image store and creates the PostgreSQL password, the SFTP
 host and client keys, and the known_hosts ConfigMap.
+
+To roll out a new validator build, run the script on the new commit and set that
+commit as `newTag` in `clusters/local/sepa-order-validator.yaml`. Flux reverts
+`kubectl rollout restart`, so a rebuilt image under an unchanged tag never rolls out.
 
 Drop a payment file into the inbox and read the report:
 

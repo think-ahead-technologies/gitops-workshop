@@ -1,7 +1,9 @@
 # About: Flux wiring for the SEPA order validator. `sepa-environment` deploys
 # PostgreSQL and the SFTP server from this repo; `sepa-order-validator`
 # deploys the app's local Kustomize overlay from the validator's own repo
-# once its environment and the monitoring stack are ready.
+# once its environment and the monitoring stack are ready. The image tag is
+# the validator commit the local image was built from: changing it here is
+# what rolls out a new build.
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: GitRepository
 metadata:
@@ -50,3 +52,7 @@ spec:
   sourceRef:
     kind: GitRepository
     name: sepa-order-validator
+  images:
+    # Built by apps/sepa/prepare-local.sh from this sepa-order-validator commit.
+    - name: payment-order-validator
+      newTag: eebc042
